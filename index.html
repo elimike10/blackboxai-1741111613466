@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Space Shooter</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
             <!-- Skill Tree Overlay -->
             <div id="skillTree" class="hidden fixed inset-0 bg-black bg-opacity-90 text-white p-8">
@@ -207,9 +208,16 @@
             <!-- Start Screen -->
             <div id="startScreen" class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80">
                 <h1 class="text-4xl mb-8 text-yellow-400">SPACE SHOOTER</h1>
-                <button id="startButton" class="px-8 py-4 bg-yellow-500 text-black rounded-lg hover:bg-yellow-400 transition-colors text-xl">
-                    START GAME
-                </button>
+                <div class="space-y-4">
+                    <button id="startButton" class="px-8 py-4 bg-yellow-500 text-black rounded-lg hover:bg-yellow-400 transition-colors text-xl">
+                        SINGLE PLAYER
+                    </button>
+                    <button id="multiplayerButton" class="px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-400 transition-colors text-xl">
+                        MULTIPLAYER
+                    </button>
+                </div>
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="mt-4 text-blue-400 hidden"></div>
                 <div class="mt-8 text-center">
                     <p class="mb-2">Controls:</p>
                     <p class="text-sm">WASD or Arrow Keys to move</p>
