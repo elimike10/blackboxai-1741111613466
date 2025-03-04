@@ -1,0 +1,13 @@
+{
+  "name": "multiplayer-space-shooter",
+  "version": "1.0.0",
+  "description": "Multiplayer space shooter game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
