@@ -95,6 +95,12 @@ class Game {
         this.canvas.width = CANVAS_WIDTH;
         this.canvas.height = CANVAS_HEIGHT;
 
+        // Multiplayer properties
+        this.socket = null;
+        this.multiplayerMode = false;
+        this.remotePlayers = new Map();
+        this.connectionStatus = document.getElementById('connectionStatus');
+
         // Weapon and element system
         this.currentWeapon = WEAPONS.LASER;
         this.currentElement = null;
@@ -271,8 +277,110 @@ class Game {
         this.updateUI();
     }
 
+    initializeMultiplayer() {
+        try {
+            this.connectionStatus.textContent = 'Connecting...';
+            this.connectionStatus.classList.remove('hidden');
+            
+            // Initialize Socket.IO connection with reconnection options
+            this.socket = io('https://y2jpsx-3001.csb.app', {
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 10000
+            });
+
+            // Socket event handlers
+            this.socket.on('connect', () => {
+                console.log('Connected to server');
+                this.connectionStatus.textContent = 'Connected! Starting game...';
+                this.start();
+                
+                // Send initial player data
+                this.socket.emit('playerJoin', {
+                    x: this.player.x,
+                    y: this.player.y,
+                    health: this.player.health
+                });
+            });
+
+            this.socket.on('existingPlayers', (players) => {
+                players.forEach(player => {
+                    if (player.id !== this.socket.id) {
+                        this.remotePlayers.set(player.id, player);
+                    }
+                });
+            });
+
+            this.socket.on('playerJoined', (player) => {
+                if (player.id !== this.socket.id) {
+                    this.remotePlayers.set(player.id, player);
+                }
+            });
+
+            this.socket.on('playerUpdate', (data) => {
+                if (data.id !== this.socket.id && this.remotePlayers.has(data.id)) {
+                    const player = this.remotePlayers.get(data.id);
+                    Object.assign(player, data);
+                }
+            });
+
+            this.socket.on('playerLeave', (playerId) => {
+                this.remotePlayers.delete(playerId);
+            });
+
+            this.socket.on('shootEvent', (data) => {
+                if (data.id !== this.socket.id) {
+                    this.bullets.push(new Bullet(data.x, data.y, data.angle));
+                }
+            });
+
+            this.socket.on('disconnect', () => {
+                this.connectionStatus.textContent = 'Disconnected from server. Trying to reconnect...';
+            });
+
+            this.socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                this.connectionStatus.textContent = 'Connection error. Retrying...';
+            });
+
+            this.socket.on('reconnect_attempt', (attemptNumber) => {
+                console.log(`Reconnection attempt ${attemptNumber}`);
+                this.connectionStatus.textContent = `Reconnecting... (Attempt ${attemptNumber})`;
+            });
+
+            this.socket.on('reconnect_failed', () => {
+                console.error('Failed to reconnect after all attempts');
+                this.connectionStatus.textContent = 'Connection failed. Please refresh the page to try again.';
+            });
+
+        } catch (error) {
+            console.error('Error initializing multiplayer:', error);
+            this.connectionStatus.textContent = 'Failed to initialize multiplayer. Please try again.';
+        }
+    }
+
     update() {
         if (this.isPaused || this.isGameOver) return;
+
+    // Send player update in multiplayer mode
+    if (this.multiplayerMode && this.socket && this.socket.connected && this.player) {
+        try {
+            this.socket.emit('playerUpdate', {
+                x: this.player.x,
+                y: this.player.y,
+                health: this.player.health
+            });
+        } catch (error) {
+            console.error('Error sending player update:', error);
+            // If we encounter an error, try to reconnect
+            if (!this.socket.connected) {
+                this.connectionStatus.textContent = 'Connection lost. Attempting to reconnect...';
+                this.connectionStatus.classList.remove('hidden');
+                this.socket.connect();
+            }
+        }
+    }
 
         // Update ability cooldowns
         const now = Date.now();
@@ -507,6 +615,19 @@ class Game {
         this.player.update();
         this.player.draw(this.ctx);
 
+    // Draw remote players in multiplayer mode
+    if (this.multiplayerMode) {
+        try {
+            this.remotePlayers.forEach(player => {
+                if (player && player.x !== undefined && player.y !== undefined) {
+                    this.drawRemotePlayer(player);
+                }
+            });
+        } catch (error) {
+            console.error('Error drawing remote players:', error);
+        }
+    }
+
         // Update and draw bullets
         this.bullets = this.bullets.filter(bullet => {
             bullet.update();
@@ -624,6 +745,37 @@ class Game {
             oscillator.start();
             oscillator.stop(this.audioCtx.currentTime + 0.1);
         });
+    }
+
+    drawRemotePlayer(player) {
+        this.ctx.save();
+        
+        // Draw player ship with different color
+        this.ctx.fillStyle = '#ff6b6b';  // Different color to distinguish remote players
+        this.ctx.beginPath();
+        this.ctx.moveTo(player.x + 20, player.y);  // Assuming width is 40
+        this.ctx.lineTo(player.x, player.y + 40);  // Assuming height is 40
+        this.ctx.lineTo(player.x + 40, player.y + 40);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw player ID above the ship
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`Player ${player.id.slice(0, 4)}`, player.x + 20, player.y - 10);
+
+        // Draw health bar
+        const healthBarWidth = 40;
+        const healthBarHeight = 4;
+        const healthPercentage = player.health / 100;
+        
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(player.x, player.y - 5, healthBarWidth, healthBarHeight);
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.fillRect(player.x, player.y - 5, healthBarWidth * healthPercentage, healthBarHeight);
+
+        this.ctx.restore();
     }
 
     createExplosion(x, y, size = 20) {
@@ -747,7 +899,16 @@ class Game {
     }
 
     setupEventListeners() {
-        document.getElementById('startButton').addEventListener('click', () => this.start());
+        document.getElementById('startButton').addEventListener('click', () => {
+            this.multiplayerMode = false;
+            this.start();
+        });
+        
+        document.getElementById('multiplayerButton').addEventListener('click', () => {
+            this.multiplayerMode = true;
+            this.initializeMultiplayer();
+        });
+        
         document.getElementById('restartButton').addEventListener('click', () => this.restart());
         
         window.addEventListener('keydown', (e) => {
@@ -1196,11 +1357,32 @@ class Player {
         if ((this.keys[' '] || this.keys['Space']) && Date.now() - this.lastShot > this.shootDelay) {
             if (this.spreadShot) {
                 // Spread shot (3 bullets)
-                game.bullets.push(new Bullet(this.x + this.width / 2, this.y, 0));
-                game.bullets.push(new Bullet(this.x + this.width / 2, this.y, -0.3));
-                game.bullets.push(new Bullet(this.x + this.width / 2, this.y, 0.3));
+                const angles = [0, -0.3, 0.3];
+                angles.forEach(angle => {
+                    const bullet = new Bullet(this.x + this.width / 2, this.y, angle);
+                    game.bullets.push(bullet);
+                    
+                    // Emit shoot event in multiplayer mode
+                    if (game.multiplayerMode && game.socket) {
+                        game.socket.emit('shootEvent', {
+                            x: this.x + this.width / 2,
+                            y: this.y,
+                            angle: angle
+                        });
+                    }
+                });
             } else {
-                game.bullets.push(new Bullet(this.x + this.width / 2, this.y, 0));
+                const bullet = new Bullet(this.x + this.width / 2, this.y, 0);
+                game.bullets.push(bullet);
+                
+                // Emit shoot event in multiplayer mode
+                if (game.multiplayerMode && game.socket) {
+                    game.socket.emit('shootEvent', {
+                        x: this.x + this.width / 2,
+                        y: this.y,
+                        angle: 0
+                    });
+                }
             }
             this.lastShot = Date.now();
         }
