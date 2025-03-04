@@ -146,13 +146,22 @@ class Game {
         this.canvas.width = CANVAS_WIDTH;
         this.canvas.height = CANVAS_HEIGHT;
         
-        // Add stars for background
-        this.stars = Array(100).fill().map(() => ({
-            x: Math.random() * CANVAS_WIDTH,
-            y: Math.random() * CANVAS_HEIGHT,
-            speed: Math.random() * 0.5 + 0.1,
-            size: Math.random() * 2 + 1
-        }));
+        // Initialize enhanced stars with more variety
+        this.stars = Array(200).fill().map(() => {
+            const speed = Math.random() * 0.5 + 0.1;
+            return {
+                x: Math.random() * CANVAS_WIDTH,
+                y: Math.random() * CANVAS_HEIGHT,
+                speed: speed,
+                parallaxSpeed: (Math.random() - 0.5) * 0.3, // Horizontal movement
+                size: Math.random() * 3 + 1,
+                color: speed > 0.3 ? '#ffffff' : 
+                       speed > 0.2 ? '#00ffff' : 
+                       speed > 0.1 ? '#ff00ff' : '#ffd700',
+                twinkle: Math.random() * Math.PI,
+                shape: Math.random() > 0.7 ? 'diamond' : 'circle' // 30% diamonds, 70% circles
+            };
+        });
         
         // Add power-ups system
         this.powerUps = [];
@@ -173,6 +182,61 @@ class Game {
         
         this.setupEventListeners();
         this.updateUI();
+    }
+
+    drawBackground() {
+        const time = Date.now() / 3000;
+        
+        // Create base nebula background with radial gradient
+        const centerX = CANVAS_WIDTH / 2;
+        const centerY = CANVAS_HEIGHT / 2;
+        const baseGradient = this.ctx.createRadialGradient(
+            centerX, centerY, 0,
+            centerX, centerY, CANVAS_HEIGHT
+        );
+        baseGradient.addColorStop(0, '#2a0033');
+        baseGradient.addColorStop(0.3, '#000066');
+        baseGradient.addColorStop(0.6, '#330066');
+        baseGradient.addColorStop(1, '#000033');
+        this.ctx.fillStyle = baseGradient;
+        this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Draw animated nebula clouds
+        const cloudColors = [
+            ['rgba(255, 0, 255, 0.03)', 'rgba(75, 0, 130, 0.05)'],  // Purple nebula
+            ['rgba(0, 255, 255, 0.03)', 'rgba(0, 0, 255, 0.05)'],   // Blue nebula
+            ['rgba(255, 150, 0, 0.03)', 'rgba(255, 0, 0, 0.05)']    // Orange nebula
+        ];
+
+        cloudColors.forEach((colors, index) => {
+            const offset = time + index * Math.PI / 2;
+            const x = centerX + Math.sin(offset) * 100;
+            const y = centerY + Math.cos(offset) * 100;
+            const cloudGradient = this.ctx.createRadialGradient(
+                x, y, 0,
+                x, y, CANVAS_HEIGHT / 1.5
+            );
+            cloudGradient.addColorStop(0, colors[0]);
+            cloudGradient.addColorStop(1, colors[1]);
+            this.ctx.fillStyle = cloudGradient;
+            this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        });
+
+        // Add subtle pulsing glow at random positions
+        for (let i = 0; i < 3; i++) {
+            const glowX = centerX + Math.sin(time * (i + 1)) * 200;
+            const glowY = centerY + Math.cos(time * (i + 1)) * 200;
+            const glowGradient = this.ctx.createRadialGradient(
+                glowX, glowY, 0,
+                glowX, glowY, 100
+            );
+            const alpha = (Math.sin(time * 2 + i) + 1) * 0.03;
+            glowGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+            glowGradient.addColorStop(0.5, `rgba(100, 100, 255, ${alpha / 2})`);
+            glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            this.ctx.fillStyle = glowGradient;
+            this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        }
     }
 
     start() {
@@ -251,20 +315,150 @@ class Game {
             this.updateUI();
         }
 
-        // Draw starfield background
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        // Draw enhanced space background
+        this.drawBackground();
+
+        // Draw cosmic dust and energy waves
+        this.ctx.globalAlpha = 0.1;
+        const currentTime = Date.now() / 3000;
+        for (let i = 0; i < 5; i++) {
+            const waveTime = currentTime + i;
+            // Create flowing cosmic dust
+            const dustGradient = this.ctx.createRadialGradient(
+                CANVAS_WIDTH * (0.2 + 0.2 * i + Math.sin(waveTime) * 0.1),
+                CANVAS_HEIGHT * (0.2 + 0.15 * i + Math.cos(waveTime) * 0.1),
+                0,
+                CANVAS_WIDTH * (0.2 + 0.2 * i + Math.sin(waveTime) * 0.1),
+                CANVAS_HEIGHT * (0.2 + 0.15 * i + Math.cos(waveTime) * 0.1),
+                200 + Math.sin(waveTime * 0.5) * 50
+            );
+            
+            // Different colors for each dust cloud
+            const colors = [
+                ['#ff00ff40', '#4b008280'], // Purple
+                ['#00ffff40', '#0080ff80'], // Cyan
+                ['#ff8c0040', '#ff400080'], // Orange
+                ['#00ff8040', '#00408080'], // Green
+                ['#ff00ff40', '#8000ff80']  // Magenta
+            ];
+            
+            dustGradient.addColorStop(0, colors[i][0]);
+            dustGradient.addColorStop(0.5, colors[i][1]);
+            dustGradient.addColorStop(1, 'transparent');
+            
+            this.ctx.fillStyle = dustGradient;
+            this.ctx.beginPath();
+            this.ctx.arc(
+                CANVAS_WIDTH * (0.2 + 0.2 * i + Math.sin(waveTime) * 0.1),
+                CANVAS_HEIGHT * (0.2 + 0.15 * i + Math.cos(waveTime) * 0.1),
+                200 + Math.sin(waveTime * 0.5) * 50,
+                0,
+                Math.PI * 2
+            );
+            this.ctx.fill();
+        }
+
+        // Draw energy waves
+        this.ctx.globalAlpha = 0.05;
+        for (let i = 0; i < 3; i++) {
+            const waveOffset = currentTime * (1 + i * 0.5);
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, CANVAS_HEIGHT * 0.5);
+            
+            for (let x = 0; x < CANVAS_WIDTH; x += 5) {
+                const y = CANVAS_HEIGHT * 0.5 + 
+                         Math.sin(x * 0.01 + waveOffset) * 50 +
+                         Math.cos(x * 0.02 - waveOffset) * 30;
+                this.ctx.lineTo(x, y);
+            }
+            
+            this.ctx.strokeStyle = i === 0 ? '#ff00ff' : i === 1 ? '#00ffff' : '#ffff00';
+            this.ctx.lineWidth = 3;
+            this.ctx.stroke();
+        }
+        this.ctx.globalAlpha = 1;
         
-        // Update and draw stars
+        // Draw enhanced starfield with parallax effect
+        this.ctx.globalAlpha = 1;
         this.stars.forEach(star => {
             star.y += star.speed;
-            if (star.y > CANVAS_HEIGHT) {
-                star.y = 0;
-                star.x = Math.random() * CANVAS_WIDTH;
+            star.x += star.parallaxSpeed;
+            
+            if (star.y > CANVAS_HEIGHT || star.x > CANVAS_WIDTH) {
+                star.y = star.y > CANVAS_HEIGHT ? 0 : star.y;
+                star.x = star.x > CANVAS_WIDTH ? 0 : star.x;
+                // Randomize star properties when recycling
+                star.color = star.speed > 0.3 ? '#ffffff' : 
+                           star.speed > 0.2 ? '#00ffff' : 
+                           star.speed > 0.1 ? '#ff00ff' : '#ffd700';
+                star.twinkle = Math.random() * Math.PI;
             }
-            this.ctx.fillStyle = `rgba(255, 255, 255, ${star.speed})`;
-            this.ctx.fillRect(star.x, star.y, star.size, star.size);
+            
+            // Enhanced twinkle effect
+            const twinkleOpacity = 0.4 + Math.sin(star.twinkle + Date.now() / 500) * 0.3;
+            star.twinkle += 0.05;
+            
+            // Draw star with enhanced glow effect
+            const glow = star.size * 2;
+            const gradient = this.ctx.createRadialGradient(
+                star.x, star.y, 0,
+                star.x, star.y, glow
+            );
+            gradient.addColorStop(0, star.color);
+            gradient.addColorStop(0.4, star.color + '80');
+            gradient.addColorStop(1, 'transparent');
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.globalAlpha = twinkleOpacity;
+            this.ctx.beginPath();
+            this.ctx.arc(star.x, star.y, glow, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Draw star core with shape variation
+            this.ctx.fillStyle = star.color;
+            this.ctx.globalAlpha = 1;
+            if (star.shape === 'circle') {
+                this.ctx.beginPath();
+                this.ctx.arc(star.x, star.y, star.size / 2, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else {
+                // Draw diamond shape for some stars
+                this.ctx.save();
+                this.ctx.translate(star.x, star.y);
+                this.ctx.rotate(Date.now() / 1000);
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, -star.size);
+                this.ctx.lineTo(star.size, 0);
+                this.ctx.lineTo(0, star.size);
+                this.ctx.lineTo(-star.size, 0);
+                this.ctx.closePath();
+                this.ctx.fill();
+                this.ctx.restore();
+            }
         });
+        
+        // Randomly create shooting stars
+        if (Math.random() < 0.005) { // 0.5% chance each frame
+            const shootingStar = {
+                x: Math.random() * CANVAS_WIDTH,
+                y: 0,
+                length: 20 + Math.random() * 20,
+                speed: 15 + Math.random() * 10,
+                angle: Math.PI / 4 + Math.random() * 0.2
+            };
+            
+            this.ctx.save();
+            this.ctx.translate(shootingStar.x, shootingStar.y);
+            this.ctx.rotate(shootingStar.angle);
+            
+            const gradient = this.ctx.createLinearGradient(0, 0, shootingStar.length, 0);
+            gradient.addColorStop(0, '#ffffff');
+            gradient.addColorStop(1, 'transparent');
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(0, 0, shootingStar.length, 1);
+            this.ctx.restore();
+        }
 
         // Spawn power-ups
         if (Date.now() - this.lastPowerUpTime > this.powerUpInterval) {
